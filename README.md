@@ -1,49 +1,52 @@
-# Solar System NodeJS Application
+# Solar System Java Application
 
-A simple HTML+MongoDB+NodeJS project to display Solar System and it's planets.
+A simple Java Spring Boot project to display Solar System and its planets.
 
 ---
 ## Requirements
 
-For development, you will only need Node.js and NPM installed in your environement.
+For development, you will need Java 17 and Maven installed in your environment.
 
-### Node
-- #### Node installation on Windows
+### Java
+- #### Java installation on Windows
 
-  Just go on [official Node.js website](https://nodejs.org/) and download the installer.
-Also, be sure to have `git` available in your PATH, `npm` might need it (You can find git [here](https://git-scm.com/)).
+  Download and install the JDK from the [official Oracle website](https://www.oracle.com/java/technologies/javase-downloads.html) or [OpenJDK](https://openjdk.org/).
 
-- #### Node installation on Ubuntu
+- #### Java installation on Ubuntu
 
-  You can install nodejs and npm easily with apt install, just run the following commands.
+  You can install OpenJDK easily with apt, just run the following commands:
 
-      $ sudo apt install nodejs
-      $ sudo apt install npm
+      $ sudo apt update
+      $ sudo apt install openjdk-17-jdk
 
-- #### Other Operating Systems
-  You can find more information about the installation on the [official Node.js website](https://nodejs.org/) and the [official NPM website](https://npmjs.org/).
+- #### Verify Installation
 
-If the installation was successful, you should be able to run the following command.
+  If the installation was successful, you should be able to run the following command:
 
-    $ node --version
-    v8.11.3
+      $ java -version
+      java version "17.x.x"
 
-    $ npm --version
-    6.1.0
+### Maven
+- #### Maven installation
+
+  Download Maven from the [Apache Maven website](https://maven.apache.org/download.cgi) and follow the installation instructions.
+
+- #### Verify Installation
+
+  If the installation was successful, you should be able to run the following command:
+
+      $ mvn -v
+      Apache Maven 3.x.x
 
 ---
-## Install Dependencies from `package.json`
-    $ npm install
+## Build and Run the Application
 
-## Run Unit Testing
-    $ npm test
+### Install Dependencies and Build
+    $ mvn clean install
 
-## Run Code Coverage
-    $ npm run coverage
+### Run the Application
+    $ mvn spring-boot:run
 
-## Run Application
-    $ npm start
-
-## Access Application on Browser
-    http://localhost:3000/
+### Access Application on Browser
+    http://localhost:8080/
 

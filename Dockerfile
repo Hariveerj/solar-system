@@ -1,17 +1,14 @@
-FROM node:18-alpine3.17
+# Use an official OpenJDK runtime as a parent image
+FROM openjdk:17-jdk-slim
 
-WORKDIR /usr/app
+# Set the working directory in the container
+WORKDIR /app
 
-COPY package*.json /usr/app/
+# Copy the JAR file into the container
+COPY target/solar-system-1.0-SNAPSHOT.jar app.jar
 
-RUN npm install
+# Expose the application port
+EXPOSE 8080
 
-COPY . .
-
-ENV MONGO_URI=uriPlaceholder
-ENV MONGO_USERNAME=usernamePlaceholder
-ENV MONGO_PASSWORD=passwordPlaceholder
-
-EXPOSE 3000
-
-CMD [ "npm", "start" ]
+# Command to run the application
+ENTRYPOINT ["java", "-jar", "app.jar"]

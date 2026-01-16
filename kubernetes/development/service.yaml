@@ -4,12 +4,12 @@ metadata:
   labels:
     app: solar-system
   name: solar-system
-  namespace: _{_NAMESPACE_}_
+  namespace: default
 spec:
   ports:
-  - port: 3000
+  - port: 8080
     protocol: TCP
-    targetPort: 3000
+    targetPort: 8080
   selector:
     app: solar-system 
   type: NodePort
