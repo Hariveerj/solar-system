@@ -1,63 +1,99 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+pipeline {
+    agent any
 
-    <modelVersion>4.0.0</modelVersion>
+    tools {
+        jdk 'jdk21'
+        maven 'maven3'
+    }
 
-    <!-- ✅ Spring Boot Parent (FIXES Tomcat CRITICAL CVE) -->
-    <parent>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.11</version>
-        <relativePath/>
-    </parent>
+    environment {
+        NEXUS_URL = 'http://<nexus-ip>:8081'
+        NEXUS_REPO = 'maven-releases'
+        NEXUS_CREDS = 'nexus-creds'
+        GROUP_ID = 'com.example'
+        ARTIFACT_ID = 'solar-system'
+        VERSION = '1.0.0'
+    }
 
-    <groupId>com.example</groupId>
-    <artifactId>solar-system</artifactId>
-    <version>1.0-SNAPSHOT</version>
-    <packaging>jar</packaging>
+    stages {
 
-    <properties>
-        <!-- ✅ Java 21 -->
-        <java.version>21</java.version>
-        <!-- Sonar plugin -->
-        <sonar.maven.plugin.version>3.10.0.2594</sonar.maven.plugin.version>
-    </properties>
+        stage('Checkout') {
+            steps { checkout scm }
+        }
 
-    <dependencies>
+        stage('Maven Build') {
+            steps { sh 'mvn clean compile' }
+        }
 
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('sonarqube-server') {
+                    sh """
+                    mvn sonar:sonar \
+                      -Dsonar.projectKey=solar-system \
+                      -Dsonar.projectName=solar-system
+                    """
+                }
+            }
+        }
 
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-mongodb</artifactId>
-        </dependency>
+        stage('Trivy Scan') {
+            steps {
+                sh """
+                mkdir -p trivy-report
+                trivy fs --severity HIGH,CRITICAL --format json \
+                  --output trivy-report/trivy-report.json .
+                trivy fs --severity CRITICAL --exit-code 1 .
+                """
+            }
+        }
 
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
+        stage('Maven Package') {
+            steps {
+                sh 'mvn package -DskipTests'
+            }
+        }
 
-    </dependencies>
+        stage('Upload JAR to Nexus') {
+            steps {
+                nexusArtifactUploader(
+                    nexusVersion: 'nexus3',
+                    protocol: 'http',
+                    nexusUrl: '<nexus-ip>:8081',
+                    repository: "${NEXUS_REPO}",
+                    credentialsId: "${NEXUS_CREDS}",
+                    groupId: "${GROUP_ID}",
+                    artifactId: "${ARTIFACT_ID}",
+                    version: "${VERSION}",
+                    artifacts: [
+                        [file: "target/${ARTIFACT_ID}-${VERSION}.jar", type: 'jar']
+                    ]
+                )
+            }
+        }
 
-    <build>
-        <plugins>
+        stage('Upload Trivy Report to Nexus') {
+            steps {
+                nexusArtifactUploader(
+                    nexusVersion: 'nexus3',
+                    protocol: 'http',
+                    nexusUrl: '<nexus-ip>:8081',
+                    repository: "${NEXUS_REPO}",
+                    credentialsId: "${NEXUS_CREDS}",
+                    groupId: "${GROUP_ID}",
+                    artifactId: "${ARTIFACT_ID}-security-report",
+                    version: "${VERSION}",
+                    artifacts: [
+                        [file: "trivy-report/trivy-report.json", type: 'json']
+                    ]
+                )
+            }
+        }
+    }
 
-            <!-- ✅ SonarQube -->
-            <plugin>
-                <groupId>org.sonarsource.scanner.maven</groupId>
-                <artifactId>sonar-maven-plugin</artifactId>
-                <version>${sonar.maven.plugin.version}</version>
-            </plugin>
-
-            <!-- Spring Boot Maven plugin auto-managed by parent -->
-
-        </plugins>
-    </build>
-
-</project>
+    post {
+        always {
+            archiveArtifacts artifacts: 'trivy-report/**', fingerprint: true
+        }
+    }
+}
