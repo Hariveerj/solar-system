@@ -18,7 +18,7 @@ pipeline {
 
         // ==== Nexus ====
         NEXUS_URL   = '13.234.77.86:8081'
-        NEXUS_REPO  = 'maven-releases'
+        NEXUS_REPO  = 'maven-snapshots'
         NEXUS_CREDS = 'nexus-creds'
     }
 
