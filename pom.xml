@@ -1,86 +1,63 @@
-pipeline {
-    agent any
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
 
-    tools {
-        jdk 'jdk21'
-        maven 'maven3'
-    }
+    <modelVersion>4.0.0</modelVersion>
 
-    environment {
-        SONAR_PROJECT_KEY  = 'solar-system'
-        SONAR_PROJECT_NAME = 'solar-system'
-        TRIVY_REPORT_DIR   = 'trivy-report'
-    }
+    <!-- ✅ Spring Boot Parent (FIXES Tomcat CRITICAL CVE) -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.11</version>
+        <relativePath/>
+    </parent>
 
-    stages {
+    <groupId>com.example</groupId>
+    <artifactId>solar-system</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
 
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
+    <properties>
+        <!-- ✅ Java 21 -->
+        <java.version>21</java.version>
+        <!-- Sonar plugin -->
+        <sonar.maven.plugin.version>3.10.0.2594</sonar.maven.plugin.version>
+    </properties>
 
-        stage('Maven Build') {
-            steps {
-                sh 'mvn clean compile'
-            }
-        }
+    <dependencies>
 
-        stage('SonarQube Analysis') {
-            steps {
-                withSonarQubeEnv('sonarqube-server') {
-                    sh """
-                    mvn sonar:sonar \
-                      -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                      -Dsonar.projectName=${SONAR_PROJECT_NAME}
-                    """
-                }
-            }
-        }
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
 
-        stage('Trivy File System Scan') {
-            steps {
-                sh """
-                mkdir -p ${TRIVY_REPORT_DIR}
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-mongodb</artifactId>
+        </dependency>
 
-                # JSON report (saved as artifact)
-                trivy fs \
-                  --severity HIGH,CRITICAL \
-                  --format json \
-                  --output ${TRIVY_REPORT_DIR}/trivy-report.json \
-                  .
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
 
-                # Console-friendly table
-                trivy fs \
-                  --severity HIGH,CRITICAL \
-                  --format table \
-                  .
+    </dependencies>
 
-                # Fail build on CRITICAL
-                trivy fs \
-                  --severity CRITICAL \
-                  --exit-code 1 \
-                  .
-                """
-            }
-        }
+    <build>
+        <plugins>
 
-        stage('Maven Package') {
-            steps {
-                sh 'mvn package -DskipTests'
-            }
-        }
-    }
+            <!-- ✅ SonarQube -->
+            <plugin>
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+                <version>${sonar.maven.plugin.version}</version>
+            </plugin>
 
-    post {
-        always {
-            archiveArtifacts artifacts: 'trivy-report/**', fingerprint: true
-        }
-        success {
-            echo 'Pipeline completed successfully'
-        }
-        failure {
-            echo 'Pipeline failed (check SonarQube or Trivy results)'
-        }
-    }
-}
+            <!-- Spring Boot Maven plugin auto-managed by parent -->
+
+        </plugins>
+    </build>
+
+</project>
