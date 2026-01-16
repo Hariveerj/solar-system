@@ -1,13 +1,17 @@
 pipeline {
     agent any
+
     stages {
-        stage('vm Node Version') {
+        stage('Checkout') {
             steps {
-                sh '''
-                node -v
-                npm -v
-                '''
+                checkout scm
             }
         }
-    }    
+
+        stage('Verify') {
+            steps {
+                sh 'echo "Git to Jenkins working"'
+            }
+        }
+    }
 }
