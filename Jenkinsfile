@@ -42,7 +42,7 @@ pipeline {
             }
         }
 
-        stage('Install Trivy (if not exists)') {
+        stage('Install Trivy (if missing)') {
             steps {
                 sh '''
                 if ! command -v trivy >/dev/null 2>&1; then
@@ -58,7 +58,7 @@ pipeline {
             }
         }
 
-        stage('Trivy Scan') {
+        stage('Trivy File System Scan') {
             steps {
                 sh '''
                 mkdir -p trivy-report
@@ -92,10 +92,14 @@ pipeline {
                     repository: "${NEXUS_REPO}",
                     credentialsId: "${NEXUS_CREDS}",
                     groupId: "${GROUP_ID}",
-                    artifactId: "${ARTIFACT_ID}",
                     version: "${VERSION}",
                     artifacts: [
-                        [file: "target/${ARTIFACT_ID}-${VERSION}.jar", type: 'jar']
+                        [
+                            artifactId: "${ARTIFACT_ID}",
+                            classifier: '',
+                            file: "target/${ARTIFACT_ID}-${VERSION}.jar",
+                            type: 'jar'
+                        ]
                     ]
                 )
             }
@@ -110,10 +114,14 @@ pipeline {
                     repository: "${NEXUS_REPO}",
                     credentialsId: "${NEXUS_CREDS}",
                     groupId: "${GROUP_ID}",
-                    artifactId: "${ARTIFACT_ID}-security-report",
                     version: "${VERSION}",
                     artifacts: [
-                        [file: "trivy-report/trivy-report.json", type: 'json']
+                        [
+                            artifactId: "${ARTIFACT_ID}-security-report",
+                            classifier: '',
+                            file: "trivy-report/trivy-report.json",
+                            type: 'json'
+                        ]
                     ]
                 )
             }
@@ -125,10 +133,10 @@ pipeline {
             archiveArtifacts artifacts: 'trivy-report/**', fingerprint: true
         }
         success {
-            echo 'Pipeline completed successfully'
+            echo 'CI/CD Pipeline completed successfully'
         }
         failure {
-            echo 'Pipeline failed – check logs'
+            echo 'CI/CD Pipeline failed – check logs'
         }
     }
 }
