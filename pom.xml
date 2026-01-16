@@ -7,22 +7,23 @@ pipeline {
     }
 
     environment {
-        NEXUS_URL = 'http://<nexus-ip>:8081'
-        NEXUS_REPO = 'maven-releases'
-        NEXUS_CREDS = 'nexus-creds'
-        GROUP_ID = 'com.example'
-        ARTIFACT_ID = 'solar-system'
-        VERSION = '1.0.0'
+        SONAR_PROJECT_KEY = 'solar-system'
+        SONAR_PROJECT_NAME = 'solar-system'
+        TRIVY_REPORT_DIR = 'trivy-report'
     }
 
     stages {
 
         stage('Checkout') {
-            steps { checkout scm }
+            steps {
+                checkout scm
+            }
         }
 
         stage('Maven Build') {
-            steps { sh 'mvn clean compile' }
+            steps {
+                sh 'mvn clean compile'
+            }
         }
 
         stage('SonarQube Analysis') {
@@ -30,63 +31,37 @@ pipeline {
                 withSonarQubeEnv('sonarqube-server') {
                     sh """
                     mvn sonar:sonar \
-                      -Dsonar.projectKey=solar-system \
-                      -Dsonar.projectName=solar-system
+                      -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                      -Dsonar.projectName=${SONAR_PROJECT_NAME}
                     """
                 }
             }
         }
 
-        stage('Trivy Scan') {
+        stage('Trivy File System Scan') {
             steps {
                 sh """
-                mkdir -p trivy-report
-                trivy fs --severity HIGH,CRITICAL --format json \
-                  --output trivy-report/trivy-report.json .
-                trivy fs --severity CRITICAL --exit-code 1 .
+                mkdir -p ${TRIVY_REPORT_DIR}
+
+                # JSON report
+                trivy fs \
+                  --severity HIGH,CRITICAL \
+                  --format json \
+                  --output ${TRIVY_REPORT_DIR}/trivy-report.json \
+                  .
+
+                # Table report (console friendly)
+                trivy fs \
+                  --severity HIGH,CRITICAL \
+                  --format table \
+                  .
+
+                # Fail build if CRITICAL vulnerabilities found
+                trivy fs \
+                  --severity CRITICAL \
+                  --exit-code 1 \
+                  .
                 """
-            }
-        }
-
-        stage('Maven Package') {
-            steps {
-                sh 'mvn package -DskipTests'
-            }
-        }
-
-        stage('Upload JAR to Nexus') {
-            steps {
-                nexusArtifactUploader(
-                    nexusVersion: 'nexus3',
-                    protocol: 'http',
-                    nexusUrl: '<nexus-ip>:8081',
-                    repository: "${NEXUS_REPO}",
-                    credentialsId: "${NEXUS_CREDS}",
-                    groupId: "${GROUP_ID}",
-                    artifactId: "${ARTIFACT_ID}",
-                    version: "${VERSION}",
-                    artifacts: [
-                        [file: "target/${ARTIFACT_ID}-${VERSION}.jar", type: 'jar']
-                    ]
-                )
-            }
-        }
-
-        stage('Upload Trivy Report to Nexus') {
-            steps {
-                nexusArtifactUploader(
-                    nexusVersion: 'nexus3',
-                    protocol: 'http',
-                    nexusUrl: '<nexus-ip>:8081',
-                    repository: "${NEXUS_REPO}",
-                    credentialsId: "${NEXUS_CREDS}",
-                    groupId: "${GROUP_ID}",
-                    artifactId: "${ARTIFACT_ID}-security-report",
-                    version: "${VERSION}",
-                    artifacts: [
-                        [file: "trivy-report/trivy-report.json", type: 'json']
-                    ]
-                )
             }
         }
     }
@@ -94,6 +69,14 @@ pipeline {
     post {
         always {
             archiveArtifacts artifacts: 'trivy-report/**', fingerprint: true
+        }
+
+        success {
+            echo 'Pipeline completed successfully'
+        }
+
+        failure {
+            echo 'Pipeline failed (check Sonar or Trivy results)'
         }
     }
 }
