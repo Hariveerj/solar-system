@@ -1,6 +1,11 @@
 pipeline {
     agent any
 
+    tools {
+        jdk 'jdk21'
+        maven 'maven3'
+    }
+
     stages {
         stage('Checkout') {
             steps {
@@ -8,9 +13,9 @@ pipeline {
             }
         }
 
-        stage('Verify') {
+        stage('Maven Clean Compile') {
             steps {
-                sh 'echo "Git to Jenkins working"'
+                sh 'mvn clean compile'
             }
         }
     }
