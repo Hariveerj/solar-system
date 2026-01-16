@@ -13,9 +13,21 @@ pipeline {
             }
         }
 
-        stage('Maven Clean Compile') {
+        stage('Maven Build') {
             steps {
                 sh 'mvn clean compile'
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('sonarqube-server') {
+                    sh '''
+                    mvn sonar:sonar \
+                    -Dsonar.projectKey=solar-system \
+                    -Dsonar.projectName=solar-system
+                    '''
+                }
             }
         }
     }
