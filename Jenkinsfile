@@ -7,9 +7,13 @@ pipeline {
     }
 
     environment {
-        SONAR_PROJECT_KEY = 'solar-system'
-        SONAR_PROJECT_NAME = 'solar-system'
-        TRIVY_REPORT_DIR = 'trivy-report'
+        NEXUS_URL   = '13.234.77.86:8081'
+        NEXUS_REPO  = 'maven-releases'
+        NEXUS_CREDS = 'nexus-creds'
+
+        GROUP_ID    = 'com.example'
+        ARTIFACT_ID = 'solar-system'
+        VERSION     = '1.0.0'
     }
 
     stages {
@@ -31,37 +35,87 @@ pipeline {
                 withSonarQubeEnv('sonarqube-server') {
                     sh """
                     mvn sonar:sonar \
-                      -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                      -Dsonar.projectName=${SONAR_PROJECT_NAME}
+                      -Dsonar.projectKey=solar-system \
+                      -Dsonar.projectName=solar-system
                     """
                 }
             }
         }
 
-        stage('Trivy File System Scan') {
+        stage('Install Trivy (if not exists)') {
             steps {
-                sh """
-                mkdir -p ${TRIVY_REPORT_DIR}
+                sh '''
+                if ! command -v trivy >/dev/null 2>&1; then
+                  echo "Installing Trivy..."
+                  apt-get update -y
+                  apt-get install -y wget tar
+                  wget https://github.com/aquasecurity/trivy/releases/download/v0.68.2/trivy_0.68.2_Linux-64bit.tar.gz
+                  tar -xzf trivy_0.68.2_Linux-64bit.tar.gz
+                  mv trivy /usr/local/bin/
+                fi
+                trivy --version
+                '''
+            }
+        }
 
-                # JSON report
+        stage('Trivy Scan') {
+            steps {
+                sh '''
+                mkdir -p trivy-report
+
                 trivy fs \
                   --severity HIGH,CRITICAL \
                   --format json \
-                  --output ${TRIVY_REPORT_DIR}/trivy-report.json \
+                  --output trivy-report/trivy-report.json \
                   .
 
-                # Table report (console friendly)
-                trivy fs \
-                  --severity HIGH,CRITICAL \
-                  --format table \
-                  .
-
-                # Fail build if CRITICAL vulnerabilities found
                 trivy fs \
                   --severity CRITICAL \
                   --exit-code 1 \
                   .
-                """
+                '''
+            }
+        }
+
+        stage('Maven Package') {
+            steps {
+                sh 'mvn package -DskipTests'
+            }
+        }
+
+        stage('Upload JAR to Nexus') {
+            steps {
+                nexusArtifactUploader(
+                    nexusVersion: 'nexus3',
+                    protocol: 'http',
+                    nexusUrl: "${NEXUS_URL}",
+                    repository: "${NEXUS_REPO}",
+                    credentialsId: "${NEXUS_CREDS}",
+                    groupId: "${GROUP_ID}",
+                    artifactId: "${ARTIFACT_ID}",
+                    version: "${VERSION}",
+                    artifacts: [
+                        [file: "target/${ARTIFACT_ID}-${VERSION}.jar", type: 'jar']
+                    ]
+                )
+            }
+        }
+
+        stage('Upload Trivy Report to Nexus') {
+            steps {
+                nexusArtifactUploader(
+                    nexusVersion: 'nexus3',
+                    protocol: 'http',
+                    nexusUrl: "${NEXUS_URL}",
+                    repository: "${NEXUS_REPO}",
+                    credentialsId: "${NEXUS_CREDS}",
+                    groupId: "${GROUP_ID}",
+                    artifactId: "${ARTIFACT_ID}-security-report",
+                    version: "${VERSION}",
+                    artifacts: [
+                        [file: "trivy-report/trivy-report.json", type: 'json']
+                    ]
+                )
             }
         }
     }
@@ -70,13 +124,11 @@ pipeline {
         always {
             archiveArtifacts artifacts: 'trivy-report/**', fingerprint: true
         }
-
         success {
             echo 'Pipeline completed successfully'
         }
-
         failure {
-            echo 'Pipeline failed (check Sonar or Trivy results)'
+            echo 'Pipeline failed – check logs'
         }
     }
 }
