@@ -7,9 +7,9 @@ pipeline {
     }
 
     environment {
-        SONAR_PROJECT_KEY = 'solar-system'
+        SONAR_PROJECT_KEY  = 'solar-system'
         SONAR_PROJECT_NAME = 'solar-system'
-        TRIVY_REPORT_DIR = 'trivy-report'
+        TRIVY_REPORT_DIR   = 'trivy-report'
     }
 
     stages {
@@ -43,25 +43,31 @@ pipeline {
                 sh """
                 mkdir -p ${TRIVY_REPORT_DIR}
 
-                # JSON report
+                # JSON report (saved as artifact)
                 trivy fs \
                   --severity HIGH,CRITICAL \
                   --format json \
                   --output ${TRIVY_REPORT_DIR}/trivy-report.json \
                   .
 
-                # Table report (console friendly)
+                # Console-friendly table
                 trivy fs \
                   --severity HIGH,CRITICAL \
                   --format table \
                   .
 
-                # Fail build if CRITICAL vulnerabilities found
+                # Fail build on CRITICAL
                 trivy fs \
                   --severity CRITICAL \
                   --exit-code 1 \
                   .
                 """
+            }
+        }
+
+        stage('Maven Package') {
+            steps {
+                sh 'mvn package -DskipTests'
             }
         }
     }
@@ -70,13 +76,11 @@ pipeline {
         always {
             archiveArtifacts artifacts: 'trivy-report/**', fingerprint: true
         }
-
         success {
             echo 'Pipeline completed successfully'
         }
-
         failure {
-            echo 'Pipeline failed (check Sonar or Trivy results)'
+            echo 'Pipeline failed (check SonarQube or Trivy results)'
         }
     }
 }
