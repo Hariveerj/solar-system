@@ -14,10 +14,11 @@ pipeline {
 
         // ==== Sonar ====
         SONAR_PROJECT_KEY  = 'solar-system'
+        SONAR_PROJECT_KEY  = 'solar-system'
         SONAR_PROJECT_NAME = 'solar-system'
 
         // ==== Nexus ====
-        NEXUS_URL   = '13.234.77.86:8081'
+        NEXUS_URL   = '13.232.240.121:8081'
         NEXUS_REPO  = 'maven-snapshots'
         NEXUS_CREDS = 'nexus-creds'
     }
