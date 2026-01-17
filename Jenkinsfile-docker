@@ -2,17 +2,17 @@ pipeline {
     agent { label 'app-server-agent' }
 
     environment {
-        // ===== Project =====
+        // ==== App Info ====
         GROUP_ID    = 'com/example'
         ARTIFACT_ID = 'solar-system'
         VERSION     = '1.0-SNAPSHOT'
 
-        // ===== Nexus =====
+        // ==== Nexus ====
         NEXUS_URL   = 'http://13.232.240.121:8081'
         NEXUS_REPO  = 'maven-snapshots'
         NEXUS_CREDS = 'nexus-creds'
 
-        // ===== Docker =====
+        // ==== Docker ====
         IMAGE_NAME  = 'hariveer/solar-system'
         IMAGE_TAG   = "${BUILD_NUMBER}"
         DOCKER_CREDS = 'dockerhub-creds'
@@ -20,7 +20,7 @@ pipeline {
 
     stages {
 
-        stage('Checkout Source (Dockerfile)') {
+        stage('Checkout Source') {
             steps {
                 checkout scm
             }
@@ -34,19 +34,30 @@ pipeline {
                     passwordVariable: 'NEXUS_PASS'
                 )]) {
                     sh '''
+                    set -e
                     mkdir -p target
 
-                    echo "Resolving latest SNAPSHOT artifact..."
+                    echo "Downloading maven-metadata.xml"
 
-                    SNAPSHOT_VERSION=$(curl -s -u $NEXUS_USER:$NEXUS_PASS \
-                      ${NEXUS_URL}/repository/${NEXUS_REPO}/${GROUP_ID}/${ARTIFACT_ID}/${VERSION}/maven-metadata.xml \
-                      | grep '<value>' | head -1 | sed 's/.*<value>\\(.*\\)<\\/value>.*/\\1/')
+                    curl -sf -u $NEXUS_USER:$NEXUS_PASS \
+                      $NEXUS_URL/repository/$NEXUS_REPO/$GROUP_ID/$ARTIFACT_ID/$VERSION/maven-metadata.xml \
+                      -o metadata.xml
+
+                    SNAPSHOT_VERSION=$(grep '<value>' metadata.xml | head -1 | sed 's/.*<value>\\(.*\\)<\\/value>.*/\\1/')
+
+                    if [ -z "$SNAPSHOT_VERSION" ]; then
+                      echo "❌ SNAPSHOT version not found"
+                      exit 1
+                    fi
 
                     echo "Resolved SNAPSHOT version: $SNAPSHOT_VERSION"
 
-                    curl -u $NEXUS_USER:$NEXUS_PASS \
-                      -o target/${ARTIFACT_ID}.jar \
-                      ${NEXUS_URL}/repository/${NEXUS_REPO}/${GROUP_ID}/${ARTIFACT_ID}/${VERSION}/${ARTIFACT_ID}-${SNAPSHOT_VERSION}.jar
+                    curl -sf -u $NEXUS_USER:$NEXUS_PASS \
+                      -o target/solar-system.jar \
+                      $NEXUS_URL/repository/$NEXUS_REPO/$GROUP_ID/$ARTIFACT_ID/$VERSION/$ARTIFACT_ID-$SNAPSHOT_VERSION.jar
+
+                    echo "Downloaded artifact:"
+                    ls -lh target/solar-system.jar
                     '''
                 }
             }
@@ -55,8 +66,8 @@ pipeline {
         stage('Validate JAR') {
             steps {
                 sh '''
-                echo "Validating downloaded JAR..."
-                ls -lh target
+                echo "Validating JAR file..."
+                file target/solar-system.jar
                 jar tf target/solar-system.jar | head -10
                 '''
             }
@@ -65,7 +76,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh '''
-                docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                docker build -t $IMAGE_NAME:$IMAGE_TAG .
                 '''
             }
         }
@@ -73,15 +84,19 @@ pipeline {
         stage('Test Docker Image') {
             steps {
                 sh '''
-                echo "Starting container for test..."
-                docker run -d -p 8080:8080 --name solar-test ${IMAGE_NAME}:${IMAGE_TAG}
+                docker rm -f solar-test || true
 
-                echo "Waiting for application startup..."
+                docker run -d -p 8080:8080 --name solar-test $IMAGE_NAME:$IMAGE_TAG
+                echo "Waiting for app startup..."
                 sleep 30
 
                 docker logs solar-test
 
-                curl -f http://localhost:8080 || (echo "❌ App not responding" && exit 1)
+                curl -f http://localhost:8080 || (
+                  echo "❌ Application not responding"
+                  docker rm -f solar-test
+                  exit 1
+                )
 
                 docker rm -f solar-test
                 '''
@@ -97,7 +112,7 @@ pipeline {
                 )]) {
                     sh '''
                     echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                    docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                    docker push $IMAGE_NAME:$IMAGE_TAG
                     '''
                 }
             }
@@ -106,10 +121,10 @@ pipeline {
 
     post {
         success {
-            echo '✅ Phase-2 SUCCESS: Docker image built, tested, and pushed'
+            echo '✅ Phase-2 completed: Docker image built & pushed successfully'
         }
         failure {
-            echo '❌ Phase-2 FAILED – check logs'
+            echo '❌ Phase-2 failed – check logs'
         }
         always {
             sh 'docker system prune -f || true'
