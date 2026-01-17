@@ -118,14 +118,33 @@ pipeline {
                 )
             }
         }
+
+        stage('Deployment Approval') {
+            steps {
+                input message: 'Approve deployment using Nexus artifact?',
+                      ok: 'Proceed'
+            }
+        }
+
+        stage('Trigger Deployment Pipeline') {
+            steps {
+                build job: 'solar-system-deploy',
+                      parameters: [
+                          string(name: 'VERSION', value: "${VERSION}")
+                      ]
+            }
+        }
     }
 
     post {
         success {
-            echo 'CI/CD Pipeline completed successfully'
+            echo 'CI pipeline completed successfully'
+        }
+        aborted {
+            echo 'Deployment was declined by user'
         }
         failure {
-            echo 'CI/CD Pipeline failed – check logs'
+            echo 'CI pipeline failed – check logs'
         }
         always {
             archiveArtifacts artifacts: 'trivy-report/**', fingerprint: true
