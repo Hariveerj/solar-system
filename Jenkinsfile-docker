@@ -70,7 +70,7 @@ pipeline {
                 docker run -d -p 8080:8080 --name solar-test $IMAGE_NAME:$IMAGE_TAG
                 sleep 20
                 docker logs solar-test
-                curl -f http://localhost:8080
+                curl -f http://localhost:8080/health
                 docker rm -f solar-test
                 '''
             }
