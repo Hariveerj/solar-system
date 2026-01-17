@@ -2,29 +2,20 @@ pipeline {
     agent { label 'app-server-agent' }
 
     environment {
-        // ==== App Info ====
         GROUP_ID    = 'com/example'
         ARTIFACT_ID = 'solar-system'
         VERSION     = '1.0-SNAPSHOT'
 
-        // ==== Nexus ====
         NEXUS_URL   = 'http://13.232.240.121:8081'
         NEXUS_REPO  = 'maven-snapshots'
         NEXUS_CREDS = 'nexus-creds'
 
-        // ==== Docker ====
         IMAGE_NAME  = 'hariveer/solar-system'
         IMAGE_TAG   = "${BUILD_NUMBER}"
         DOCKER_CREDS = 'dockerhub-creds'
     }
 
     stages {
-
-        stage('Checkout Source') {
-            steps {
-                checkout scm
-            }
-        }
 
         stage('Download Artifact from Nexus') {
             steps {
@@ -34,30 +25,10 @@ pipeline {
                     passwordVariable: 'NEXUS_PASS'
                 )]) {
                     sh '''
-                    set -e
                     mkdir -p target
-
-                    echo "Downloading maven-metadata.xml"
-
                     curl -sf -u $NEXUS_USER:$NEXUS_PASS \
-                      $NEXUS_URL/repository/$NEXUS_REPO/$GROUP_ID/$ARTIFACT_ID/$VERSION/maven-metadata.xml \
-                      -o metadata.xml
-
-                    SNAPSHOT_VERSION=$(grep '<value>' metadata.xml | head -1 | sed 's/.*<value>\\(.*\\)<\\/value>.*/\\1/')
-
-                    if [ -z "$SNAPSHOT_VERSION" ]; then
-                      echo "❌ SNAPSHOT version not found"
-                      exit 1
-                    fi
-
-                    echo "Resolved SNAPSHOT version: $SNAPSHOT_VERSION"
-
-                    curl -sf -u $NEXUS_USER:$NEXUS_PASS \
-                      -o target/solar-system.jar \
-                      $NEXUS_URL/repository/$NEXUS_REPO/$GROUP_ID/$ARTIFACT_ID/$VERSION/$ARTIFACT_ID-$SNAPSHOT_VERSION.jar
-
-                    echo "Downloaded artifact:"
-                    ls -lh target/solar-system.jar
+                      -o target/app.jar \
+                      $NEXUS_URL/repository/$NEXUS_REPO/$GROUP_ID/$ARTIFACT_ID/$VERSION/$ARTIFACT_ID-$VERSION.jar
                     '''
                 }
             }
@@ -66,44 +37,32 @@ pipeline {
         stage('Validate JAR') {
             steps {
                 sh '''
-                echo "Validating JAR file..."
-                file target/solar-system.jar
-                jar tf target/solar-system.jar | head -10
+                ls -lh target/app.jar
+                jar tf target/app.jar | grep BOOT-INF
                 '''
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-                docker build -t $IMAGE_NAME:$IMAGE_TAG .
-                '''
+                sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
             }
         }
 
-        stage('Test Docker Image') {
+        stage('Test Docker Container') {
             steps {
                 sh '''
                 docker rm -f solar-test || true
-
                 docker run -d -p 8080:8080 --name solar-test $IMAGE_NAME:$IMAGE_TAG
-                echo "Waiting for app startup..."
-                sleep 15
-
+                sleep 20
                 docker logs solar-test
-
-                curl -f http://localhost:8080 || (
-                  echo "❌ Application not responding"
-                  docker rm -f solar-test
-                  exit 1
-                )
-
+                curl -f http://localhost:8080
                 docker rm -f solar-test
                 '''
             }
         }
 
-        stage('Push Image to Docker Hub') {
+        stage('Push to Docker Hub') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: DOCKER_CREDS,
@@ -120,12 +79,6 @@ pipeline {
     }
 
     post {
-        success {
-            echo '✅ Phase-2 completed: Docker image built & pushed successfully'
-        }
-        failure {
-            echo '❌ Phase-2 failed – check logs'
-        }
         always {
             sh 'docker system prune -f || true'
         }

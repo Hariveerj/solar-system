@@ -1,11 +1,11 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="
+           http://maven.apache.org/POM/4.0.0
+           https://maven.apache.org/xsd/maven-4.0.0.xsd">
 
     <modelVersion>4.0.0</modelVersion>
 
-    <!-- ✅ Spring Boot Parent (FIXES Tomcat CRITICAL CVE) -->
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
@@ -19,9 +19,7 @@
     <packaging>jar</packaging>
 
     <properties>
-        <!-- ✅ Java 21 -->
         <java.version>21</java.version>
-        <!-- Sonar plugin -->
         <sonar.maven.plugin.version>3.10.0.2594</sonar.maven.plugin.version>
     </properties>
 
@@ -48,14 +46,25 @@
     <build>
         <plugins>
 
-            <!-- ✅ SonarQube -->
+            <!-- Creates EXECUTABLE Spring Boot JAR -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Sonar -->
             <plugin>
                 <groupId>org.sonarsource.scanner.maven</groupId>
                 <artifactId>sonar-maven-plugin</artifactId>
                 <version>${sonar.maven.plugin.version}</version>
             </plugin>
-
-            <!-- Spring Boot Maven plugin auto-managed by parent -->
 
         </plugins>
     </build>
