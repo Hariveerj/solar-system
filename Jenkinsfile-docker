@@ -1,37 +1,34 @@
 pipeline {
-    agent any
+    agent { label 'app-server-agent' }
 
     environment {
-        DOCKER_IMAGE = 'hariveer/solar-system'
-        IMAGE_TAG    = "${BUILD_NUMBER}"
+        IMAGE_NAME = 'hariveer/solar-system'
+        IMAGE_TAG  = "${BUILD_NUMBER}"
         DOCKER_CREDS = 'dockerhub-creds'
     }
 
     stages {
 
         stage('Checkout') {
-            steps {
-                checkout scm
-            }
+            steps { checkout scm }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-                docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} .
-                docker tag ${DOCKER_IMAGE}:${IMAGE_TAG} ${DOCKER_IMAGE}:latest
-                '''
+                sh """
+                docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                """
             }
         }
 
         stage('Test Docker Image') {
             steps {
-                sh '''
-                docker run -d --name solar-test -p 8080:8080 ${DOCKER_IMAGE}:${IMAGE_TAG}
+                sh """
+                docker run -d -p 8080:8080 --name solar-test ${IMAGE_NAME}:${IMAGE_TAG}
                 sleep 10
-                docker ps | grep solar-test
+                curl -f http://localhost:8080 || exit 1
                 docker rm -f solar-test
-                '''
+                """
             }
         }
 
@@ -42,11 +39,10 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    sh '''
-                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                    docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
-                    docker push ${DOCKER_IMAGE}:latest
-                    '''
+                    sh """
+                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                    docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                    """
                 }
             }
         }
@@ -54,10 +50,10 @@ pipeline {
 
     post {
         success {
-            echo 'Docker image built and pushed successfully'
+            echo 'Docker image built & pushed successfully'
         }
         failure {
-            echo 'Docker Phase failed'
+            echo 'Docker phase failed'
         }
     }
 }
