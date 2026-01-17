@@ -17,6 +17,12 @@ pipeline {
 
     stages {
 
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
         stage('Download Artifact from Nexus') {
             steps {
                 withCredentials([usernamePassword(
@@ -25,10 +31,18 @@ pipeline {
                     passwordVariable: 'NEXUS_PASS'
                 )]) {
                     sh '''
+                    set -e
                     mkdir -p target
+
+                    curl -sf -u $NEXUS_USER:$NEXUS_PASS \
+                      $NEXUS_URL/repository/$NEXUS_REPO/$GROUP_ID/$ARTIFACT_ID/$VERSION/maven-metadata.xml \
+                      -o metadata.xml
+
+                    SNAPSHOT=$(grep '<value>' metadata.xml | head -1 | sed 's/.*<value>\\(.*\\)<\\/value>.*/\\1/')
+
                     curl -sf -u $NEXUS_USER:$NEXUS_PASS \
                       -o target/app.jar \
-                      $NEXUS_URL/repository/$NEXUS_REPO/$GROUP_ID/$ARTIFACT_ID/$VERSION/$ARTIFACT_ID-$VERSION.jar
+                      $NEXUS_URL/repository/$NEXUS_REPO/$GROUP_ID/$ARTIFACT_ID/$VERSION/$ARTIFACT_ID-$SNAPSHOT.jar
                     '''
                 }
             }
@@ -37,8 +51,8 @@ pipeline {
         stage('Validate JAR') {
             steps {
                 sh '''
-                ls -lh target/app.jar
-                jar tf target/app.jar | grep BOOT-INF
+                file target/app.jar
+                jar tf target/app.jar | head -5
                 '''
             }
         }
