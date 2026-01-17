@@ -5,32 +5,58 @@
 
     <modelVersion>4.0.0</modelVersion>
 
+    <!-- Spring Boot Parent -->
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>3.3.11</version>
+        <relativePath/>
     </parent>
 
+    <!-- Project Info -->
     <groupId>com.example</groupId>
     <artifactId>solar-system</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
+    <name>solar-system</name>
+    <description>Solar System Spring Boot Application</description>
+
+    <!-- Java Version -->
     <properties>
         <java.version>21</java.version>
+        <sonar.maven.plugin.version>3.10.0.2594</sonar.maven.plugin.version>
     </properties>
 
+    <!-- Dependencies -->
     <dependencies>
+
+        <!-- Spring Web (REST APIs) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+
+        <!-- MongoDB (REQUIRED for your code) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-mongodb</artifactId>
+        </dependency>
+
+        <!-- Testing -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
+    <!-- Build Plugins -->
     <build>
         <plugins>
 
-            <!-- IMPORTANT: Makes executable JAR -->
+            <!-- Spring Boot Executable JAR -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
@@ -41,6 +67,13 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+
+            <!-- SonarQube Plugin -->
+            <plugin>
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+                <version>${sonar.maven.plugin.version}</version>
             </plugin>
 
         </plugins>
