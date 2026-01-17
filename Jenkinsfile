@@ -14,7 +14,6 @@ pipeline {
 
         // ==== Sonar ====
         SONAR_PROJECT_KEY  = 'solar-system'
-        SONAR_PROJECT_KEY  = 'solar-system'
         SONAR_PROJECT_NAME = 'solar-system'
 
         // ==== Nexus ====
