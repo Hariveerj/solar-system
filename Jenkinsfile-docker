@@ -2,24 +2,25 @@ pipeline {
     agent { label 'app-server-agent' }
 
     environment {
-        IMAGE_NAME   = 'hariveer/solar-system'
-        IMAGE_TAG    = "${BUILD_NUMBER}"
+        // ===== Project =====
+        GROUP_ID    = 'com/example'
+        ARTIFACT_ID = 'solar-system'
+        VERSION     = '1.0-SNAPSHOT'
 
-        // Nexus
-        NEXUS_URL    = 'http://13.232.240.121:8081'
-        NEXUS_REPO   = 'maven-snapshots'
-        GROUP_ID     = 'com/example'
-        ARTIFACT_ID  = 'solar-system'
-        VERSION      = '1.0-SNAPSHOT'
-        NEXUS_CREDS  = 'nexus-creds'
+        // ===== Nexus =====
+        NEXUS_URL   = 'http://13.232.240.121:8081'
+        NEXUS_REPO  = 'maven-snapshots'
+        NEXUS_CREDS = 'nexus-creds'
 
-        // Docker Hub
+        // ===== Docker =====
+        IMAGE_NAME  = 'hariveer/solar-system'
+        IMAGE_TAG   = "${BUILD_NUMBER}"
         DOCKER_CREDS = 'dockerhub-creds'
     }
 
     stages {
 
-        stage('Checkout Source') {
+        stage('Checkout Source (Dockerfile)') {
             steps {
                 checkout scm
             }
@@ -35,17 +36,29 @@ pipeline {
                     sh '''
                     mkdir -p target
 
+                    echo "Resolving latest SNAPSHOT artifact..."
+
+                    SNAPSHOT_VERSION=$(curl -s -u $NEXUS_USER:$NEXUS_PASS \
+                      ${NEXUS_URL}/repository/${NEXUS_REPO}/${GROUP_ID}/${ARTIFACT_ID}/${VERSION}/maven-metadata.xml \
+                      | grep '<value>' | head -1 | sed 's/.*<value>\\(.*\\)<\\/value>.*/\\1/')
+
+                    echo "Resolved SNAPSHOT version: $SNAPSHOT_VERSION"
+
                     curl -u $NEXUS_USER:$NEXUS_PASS \
-                    -o target/${ARTIFACT_ID}-${VERSION}.jar \
-                    ${NEXUS_URL}/repository/${NEXUS_REPO}/${GROUP_ID}/${ARTIFACT_ID}/${VERSION}/${ARTIFACT_ID}-${VERSION}.jar
+                      -o target/${ARTIFACT_ID}.jar \
+                      ${NEXUS_URL}/repository/${NEXUS_REPO}/${GROUP_ID}/${ARTIFACT_ID}/${VERSION}/${ARTIFACT_ID}-${SNAPSHOT_VERSION}.jar
                     '''
                 }
             }
         }
 
-        stage('Verify Artifact') {
+        stage('Validate JAR') {
             steps {
-                sh 'ls -lh target'
+                sh '''
+                echo "Validating downloaded JAR..."
+                ls -lh target
+                jar tf target/solar-system.jar | head -10
+                '''
             }
         }
 
@@ -60,6 +73,7 @@ pipeline {
         stage('Test Docker Image') {
             steps {
                 sh '''
+                echo "Starting container for test..."
                 docker run -d -p 8080:8080 --name solar-test ${IMAGE_NAME}:${IMAGE_TAG}
 
                 echo "Waiting for application startup..."
@@ -67,12 +81,7 @@ pipeline {
 
                 docker logs solar-test
 
-                curl -f http://localhost:8080 || (
-                    echo "❌ Application not responding"
-                    docker logs solar-test
-                    docker rm -f solar-test
-                    exit 1
-                )
+                curl -f http://localhost:8080 || (echo "❌ App not responding" && exit 1)
 
                 docker rm -f solar-test
                 '''
@@ -87,7 +96,7 @@ pipeline {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
                     sh '''
-                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
                     docker push ${IMAGE_NAME}:${IMAGE_TAG}
                     '''
                 }
@@ -97,13 +106,13 @@ pipeline {
 
     post {
         success {
-            echo '✅ Phase-2 completed: Docker image built, tested, and pushed'
+            echo '✅ Phase-2 SUCCESS: Docker image built, tested, and pushed'
         }
         failure {
-            echo '❌ Phase-2 failed – check logs'
+            echo '❌ Phase-2 FAILED – check logs'
         }
         always {
-            sh 'docker system prune -f'
+            sh 'docker system prune -f || true'
         }
     }
 }
