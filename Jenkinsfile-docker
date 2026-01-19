@@ -90,6 +90,19 @@ pipeline {
                 }
             }
         }
+        stage('Trigger Phase-3 Deployment') {
+            when {
+                expression { currentBuild.currentResult == 'SUCCESS' }
+            }
+            steps {
+                build job: 'solar-phase-3-deploy',
+                wait: false,
+                parameters: [
+                    string(name: 'IMAGE_TAG', value: "${IMAGE_TAG}")
+                ]
+            }
+        }
+
     }
 
     post {

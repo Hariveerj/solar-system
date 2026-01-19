@@ -1,0 +1,32 @@
+pipeline {
+    agent { label 'app-server-agent' }
+
+    parameters {
+        string(name: 'IMAGE_TAG', description: 'Docker image tag to deploy')
+    }
+
+    options {
+        disableConcurrentBuilds()
+    }
+
+    stages {
+
+        stage('Approval (Phase-3)') {
+            steps {
+                input message: "Approve deployment of hariveer/solar-system:${params.IMAGE_TAG} to Kubernetes?",
+                      ok: "APPROVE"
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh '''
+                kubectl set image deployment/solar-system \
+                  solar-system=hariveer/solar-system:${IMAGE_TAG}
+
+                kubectl rollout status deployment/solar-system
+                '''
+            }
+        }
+    }
+}
