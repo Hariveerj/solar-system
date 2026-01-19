@@ -2,18 +2,17 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: solar-system
-  namespace: default
   annotations:
     kubernetes.io/ingress.class: nginx
 spec:
   rules:
-    - host: solar-system.default.local
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: solar-system
-                port:
-                  number: 8080
+  - host: solar-system.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: solar-system
+            port:
+              number: 8080
