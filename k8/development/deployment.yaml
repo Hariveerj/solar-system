@@ -16,10 +16,10 @@ spec:
     spec:
       containers:
       - name: solar-system
-        image: hariveer/solar-system:11   # ✅ Docker Hub image
+        image: hariveer/solar-system:16
         imagePullPolicy: Always
         ports:
-        - containerPort: 8080
+          - containerPort: 8080
         resources:
           requests:
             cpu: "250m"
