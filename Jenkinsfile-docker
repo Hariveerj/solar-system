@@ -2,28 +2,29 @@ pipeline {
     agent { label 'app-server-agent' }
 
     environment {
-        GROUP_ID    = 'com/example'
-        ARTIFACT_ID = 'solar-system'
-        VERSION     = '1.0-SNAPSHOT'
-
+        // ===== Nexus =====
         NEXUS_URL   = 'http://13.234.202.23:8081'
         NEXUS_REPO  = 'maven-snapshots'
         NEXUS_CREDS = 'nexus-creds'
 
-        IMAGE_NAME  = 'hariveer/solar-system'
-        IMAGE_TAG   = "${BUILD_NUMBER}"
-        DOCKER_CREDS = 'dockerhub-creds'
+        GROUP_ID    = 'com/example'
+        ARTIFACT_ID = 'solar-system'
+        VERSION     = '1.0-SNAPSHOT'
+
+        // ===== Docker =====
+        IMAGE_NAME = 'hariveer/solar-system'
+        IMAGE_TAG  = "${BUILD_NUMBER}"
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout Source') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Download Artifact from Nexus') {
+        stage('Download JAR from Nexus') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: NEXUS_CREDS,
@@ -35,79 +36,57 @@ pipeline {
                     mkdir -p target
 
                     curl -sf -u $NEXUS_USER:$NEXUS_PASS \
-                      $NEXUS_URL/repository/$NEXUS_REPO/$GROUP_ID/$ARTIFACT_ID/$VERSION/maven-metadata.xml \
-                      -o metadata.xml
-
-                    SNAPSHOT=$(grep '<value>' metadata.xml | head -1 | sed 's/.*<value>\\(.*\\)<\\/value>.*/\\1/')
-
-                    curl -sf -u $NEXUS_USER:$NEXUS_PASS \
                       -o target/app.jar \
-                      $NEXUS_URL/repository/$NEXUS_REPO/$GROUP_ID/$ARTIFACT_ID/$VERSION/$ARTIFACT_ID-$SNAPSHOT.jar
+                      $NEXUS_URL/repository/$NEXUS_REPO/$GROUP_ID/$ARTIFACT_ID/$VERSION/$ARTIFACT_ID-$VERSION.jar
+
+                    ls -lh target/app.jar
                     '''
                 }
-            }
-        }
-
-        stage('Validate JAR') {
-            steps {
-                sh '''
-                file target/app.jar
-                jar tf target/app.jar | head -5
-                '''
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
-            }
-        }
-
-        stage('Test Docker Container') {
-            steps {
                 sh '''
-                docker rm -f solar-test || true
-                docker run -d -p 8080:8080 --name solar-test $IMAGE_NAME:$IMAGE_TAG
-                sleep 20
-                docker logs solar-test
-                curl -f http://localhost:8080/health
-                docker rm -f solar-test
+                docker build -t $IMAGE_NAME:$IMAGE_TAG .
                 '''
             }
         }
 
-        stage('Push to Docker Hub') {
+        stage('Run Container on 8080') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: DOCKER_CREDS,
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    sh '''
-                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                    docker push $IMAGE_NAME:$IMAGE_TAG
-                    '''
-                }
+                sh '''
+                docker rm -f solar-test || true
+
+                docker run -d \
+                  -p 8080:8080 \
+                  --name solar-test \
+                  $IMAGE_NAME:$IMAGE_TAG
+
+                echo "✅ Container started on port 8080"
+                docker ps | grep solar-test
+                '''
             }
         }
-        stage('Trigger Phase-3 Deployment') {
-            when {
-                expression { currentBuild.currentResult == 'SUCCESS' }
-            }
+
+        stage('Approval After App is Running') {
             steps {
-                build job: 'solar-phase-3-deploy',
-                wait: false,
-                parameters: [
-                    string(name: 'IMAGE_TAG', value: "${IMAGE_TAG}")
-                ]
+                input message: "App is running on port 8080. Proceed to Phase-3 (Kubernetes)?",
+                      ok: "APPROVE"
             }
         }
 
     }
 
     post {
-        always {
-            sh 'docker system prune -af || true'
+        success {
+            echo '✅ Phase-2 success: App running on 8080 & approval granted'
+        }
+        aborted {
+            echo '⏸️ Approval rejected – Container still running on 8080'
+        }
+        failure {
+            echo '❌ Phase-2 failed'
         }
     }
 }

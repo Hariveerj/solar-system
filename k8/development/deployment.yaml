@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: solar-system
-        image: hariveer/solar-system:16
+        image: hariveer/solar-system:latest
         imagePullPolicy: Always
         ports:
           - containerPort: 8080
