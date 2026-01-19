@@ -1,64 +1,37 @@
 pipeline {
-    agent { label 'app-server-agent' }
+  agent { label 'app-server-agent' }
 
-    environment {
-        IMAGE_NAME = 'hariveer/solar-system'
-        IMAGE_TAG  = "${BUILD_NUMBER}"
-        K8S_PATH   = 'k8/development'
+  environment {
+    IMAGE_NAME = "hariveer/solar-system"
+    IMAGE_TAG  = "${BUILD_NUMBER}"
+  }
+
+  stages {
+
+    stage('Approval') {
+      steps {
+        input message: "Deploy ${IMAGE_NAME}:${IMAGE_TAG} to Kubernetes?",
+              ok: "APPROVE"
+      }
     }
 
-    stages {
-
-        stage('Checkout Source') {
-            steps {
-                checkout scm
-            }
-        }
-
-        stage('Approval (Phase-3)') {
-            steps {
-                input message: "Approve deployment of ${IMAGE_NAME}:${IMAGE_TAG} to Kubernetes?",
-                      ok: "Deploy"
-            }
-        }
-
-        stage('Deploy to Kubernetes') {
-            steps {
-                sh '''
-                echo "🔹 Updating image tag in deployment file"
-
-                sed -i "s|image:.*|image: ${IMAGE_NAME}:${IMAGE_TAG}|" ${K8S_PATH}/deployment.yaml
-
-                echo "🔹 Applying Kubernetes manifests"
-                kubectl apply -f ${K8S_PATH}/deployment.yaml
-                kubectl apply -f ${K8S_PATH}/service.yaml
-                kubectl apply -f ${K8S_PATH}/ingress.yaml
-                '''
-            }
-        }
-
-        stage('Verify Deployment') {
-            steps {
-                sh '''
-                echo "🔹 Pods"
-                kubectl get pods -l app=solar-system
-
-                echo "🔹 Service"
-                kubectl get svc solar-system
-
-                echo "🔹 Ingress"
-                kubectl get ingress solar-system
-                '''
-            }
-        }
+    stage('Deploy to Kubernetes') {
+      steps {
+        sh '''
+        kubectl apply -f deployment.yaml
+        kubectl apply -f service.yaml
+        kubectl rollout status deployment/solar-system
+        '''
+      }
     }
+  }
 
-    post {
-        success {
-            echo '✅ Phase-3 completed: Application deployed to Kubernetes'
-        }
-        failure {
-            echo '❌ Phase-3 failed: Check kubectl logs'
-        }
+  post {
+    success {
+      echo "✅ Phase-3 Deployment Successful"
     }
+    failure {
+      echo "❌ Phase-3 Deployment Failed"
+    }
+  }
 }
