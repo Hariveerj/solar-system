@@ -7,16 +7,16 @@ pipeline {
     }
 
     environment {
-        // Project
+        // ===== Project =====
         GROUP_ID    = 'com.example'
         ARTIFACT_ID = 'solar-system'
         VERSION     = '1.0-SNAPSHOT'
 
-        // Sonar
+        // ===== SonarQube =====
         SONAR_PROJECT_KEY  = 'solar-system'
         SONAR_PROJECT_NAME = 'solar-system'
 
-        // Nexus
+        // ===== Nexus =====
         NEXUS_URL   = '13.234.202.23:8081'
         NEXUS_REPO  = 'maven-snapshots'
         NEXUS_CREDS = 'nexus-creds'
@@ -24,7 +24,7 @@ pipeline {
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout SCM') {
             steps {
                 checkout scm
             }
@@ -32,7 +32,9 @@ pipeline {
 
         stage('Maven Build') {
             steps {
-                sh 'mvn clean package -DskipTests'
+                sh '''
+                mvn clean package -DskipTests
+                '''
             }
         }
 
@@ -40,7 +42,7 @@ pipeline {
             steps {
                 withSonarQubeEnv('sonarqube-server') {
                     sh '''
-                    mvn sonar:sonar \
+                    mvn verify sonar:sonar \
                       -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                       -Dsonar.projectName=${SONAR_PROJECT_NAME}
                     '''
@@ -62,7 +64,9 @@ pipeline {
 
         stage('Verify Artifact') {
             steps {
-                sh 'ls -lh target'
+                sh '''
+                ls -lh target
+                '''
             }
         }
 
@@ -75,9 +79,9 @@ pipeline {
                     repository: "${NEXUS_REPO}",
                     credentialsId: "${NEXUS_CREDS}",
                     groupId: "${GROUP_ID}",
+                    artifactId: "${ARTIFACT_ID}",
                     version: "${VERSION}",
                     artifacts: [[
-                        artifactId: "${ARTIFACT_ID}",
                         file: "target/${ARTIFACT_ID}-${VERSION}.jar",
                         type: 'jar'
                     ]]
@@ -94,9 +98,9 @@ pipeline {
                     repository: "${NEXUS_REPO}",
                     credentialsId: "${NEXUS_CREDS}",
                     groupId: "${GROUP_ID}",
+                    artifactId: "${ARTIFACT_ID}-security-report",
                     version: "${VERSION}",
                     artifacts: [[
-                        artifactId: "${ARTIFACT_ID}-security-report",
                         file: "trivy-report/trivy-report.json",
                         type: 'json'
                     ]]
@@ -106,7 +110,7 @@ pipeline {
 
         stage('Deployment Approval') {
             steps {
-                input message: 'Approve deployment?',
+                input message: 'Approve deployment to Phase-2?',
                       ok: 'Proceed'
             }
         }
@@ -124,6 +128,12 @@ pipeline {
     post {
         always {
             archiveArtifacts artifacts: 'trivy-report/**', fingerprint: true
+        }
+        success {
+            echo '✅ Phase-1 completed successfully'
+        }
+        failure {
+            echo '❌ Phase-1 failed'
         }
     }
 }
