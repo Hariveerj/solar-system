@@ -32,20 +32,18 @@ pipeline {
 
         stage('Maven Build') {
             steps {
-                sh '''
-                mvn clean package -DskipTests
-                '''
+                sh 'mvn clean package -DskipTests'
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('sonarqube-server') {
-                    sh '''
-                    mvn verify sonar:sonar \
+                    sh """
+                    mvn sonar:sonar \
                       -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                       -Dsonar.projectName=${SONAR_PROJECT_NAME}
-                    '''
+                    """
                 }
             }
         }
@@ -64,9 +62,7 @@ pipeline {
 
         stage('Verify Artifact') {
             steps {
-                sh '''
-                ls -lh target
-                '''
+                sh 'ls -lh target'
             }
         }
 
@@ -79,9 +75,9 @@ pipeline {
                     repository: "${NEXUS_REPO}",
                     credentialsId: "${NEXUS_CREDS}",
                     groupId: "${GROUP_ID}",
-                    artifactId: "${ARTIFACT_ID}",
                     version: "${VERSION}",
                     artifacts: [[
+                        artifactId: "${ARTIFACT_ID}",
                         file: "target/${ARTIFACT_ID}-${VERSION}.jar",
                         type: 'jar'
                     ]]
@@ -98,9 +94,9 @@ pipeline {
                     repository: "${NEXUS_REPO}",
                     credentialsId: "${NEXUS_CREDS}",
                     groupId: "${GROUP_ID}",
-                    artifactId: "${ARTIFACT_ID}-security-report",
                     version: "${VERSION}",
                     artifacts: [[
+                        artifactId: "${ARTIFACT_ID}-security-report",
                         file: "trivy-report/trivy-report.json",
                         type: 'json'
                     ]]
