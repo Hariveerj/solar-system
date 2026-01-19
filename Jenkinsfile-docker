@@ -14,6 +14,7 @@ pipeline {
         // ===== Docker =====
         IMAGE_NAME = 'hariveer/solar-system'
         IMAGE_TAG  = "${BUILD_NUMBER}"
+        CONTAINER  = "solar-test-${BUILD_NUMBER}"
     }
 
     stages {
@@ -24,7 +25,7 @@ pipeline {
             }
         }
 
-        stage('Download JAR from Nexus') {
+        stage('Download JAR from Nexus (SNAPSHOT SAFE)') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: NEXUS_CREDS,
@@ -35,9 +36,23 @@ pipeline {
                     set -e
                     mkdir -p target
 
+                    echo "🔹 Fetching maven-metadata.xml"
+                    curl -sf -u $NEXUS_USER:$NEXUS_PASS \
+                      $NEXUS_URL/repository/$NEXUS_REPO/$GROUP_ID/$ARTIFACT_ID/$VERSION/maven-metadata.xml \
+                      -o metadata.xml
+
+                    SNAPSHOT_VERSION=$(grep '<value>' metadata.xml | head -1 | sed 's/.*<value>\\(.*\\)<\\/value>.*/\\1/')
+
+                    if [ -z "$SNAPSHOT_VERSION" ]; then
+                      echo "❌ SNAPSHOT version not found"
+                      exit 1
+                    fi
+
+                    echo "✅ Resolved SNAPSHOT version: $SNAPSHOT_VERSION"
+
                     curl -sf -u $NEXUS_USER:$NEXUS_PASS \
                       -o target/app.jar \
-                      $NEXUS_URL/repository/$NEXUS_REPO/$GROUP_ID/$ARTIFACT_ID/$VERSION/$ARTIFACT_ID-$VERSION.jar
+                      $NEXUS_URL/repository/$NEXUS_REPO/$GROUP_ID/$ARTIFACT_ID/$VERSION/$ARTIFACT_ID-$SNAPSHOT_VERSION.jar
 
                     ls -lh target/app.jar
                     '''
@@ -49,50 +64,49 @@ pipeline {
             steps {
                 sh '''
                 docker build -t $IMAGE_NAME:$IMAGE_TAG .
+                docker images | grep $IMAGE_NAME
                 '''
             }
         }
 
-        stage('Run Container on 8080 (SAFE)') {
-			steps {
-				sh '''
-				echo "🔍 Checking if port 8080 already in use..."
-
-				if docker ps --format '{{.Names}}' | grep -q solar-test; then
-				echo "⚠️ solar-test container already running on 8080"
-				echo "✅ Reusing existing container"
-				else
-				echo "🚀 Starting new container on 8080"
-				docker run -d \
-					-p 8080:8080 \
-					--name solar-test \
-					$IMAGE_NAME:$IMAGE_TAG
-				fi
-
-				docker ps | grep solar-test
-				'''
-			}
-		}
-
-
-        stage('Approval After App is Running') {
+        stage('Run Container on 8080 (DO NOT REMOVE)') {
             steps {
-                input message: "App is running on port 8080. Proceed to Phase-3 (Kubernetes)?",
-                      ok: "APPROVE"
+                sh '''
+                echo "🔹 Starting container on 8080"
+
+                docker run -d \
+                  -p 8080:8080 \
+                  --name $CONTAINER \
+                  $IMAGE_NAME:$IMAGE_TAG
+
+                docker ps | grep $CONTAINER
+                '''
             }
         }
 
+        stage('Approval After App is Running') {
+            steps {
+                input message: """
+✅ App is running on port 8080
+
+URL: http://<APP-SERVER-IP>:8080
+
+Proceed to Phase-3 (Kubernetes)?
+""",
+                ok: 'APPROVE'
+            }
+        }
     }
 
     post {
         success {
-            echo '✅ Phase-2 success: App running on 8080 & approval granted'
+            echo '✅ Phase-2 SUCCESS – App running on 8080'
         }
         aborted {
-            echo '⏸️ Approval rejected – Container still running on 8080'
+            echo '⏸️ Approval rejected – Container still running'
         }
         failure {
-            echo '❌ Phase-2 failed'
+            echo '❌ Phase-2 FAILED'
         }
     }
 }
