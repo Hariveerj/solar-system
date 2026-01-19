@@ -4,11 +4,18 @@ pipeline {
   environment {
     IMAGE_NAME = "hariveer/solar-system"
     IMAGE_TAG  = "${BUILD_NUMBER}"
+    K8S_DIR    = "/opt/jenkins-agent/workdir/workspace/solar-system-deploy/k8/development"
   }
 
   stages {
 
-    stage('Approval') {
+    stage('Checkout Source') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('Approval (Phase-3)') {
       steps {
         input message: "Deploy ${IMAGE_NAME}:${IMAGE_TAG} to Kubernetes?",
               ok: "APPROVE"
@@ -18,8 +25,13 @@ pipeline {
     stage('Deploy to Kubernetes') {
       steps {
         sh '''
-        kubectl apply -f deployment.yaml
-        kubectl apply -f service.yaml
+        echo "🔹 Applying Kubernetes manifests"
+
+        kubectl apply -f ${K8S_DIR}/deployment.yaml
+        kubectl apply -f ${K8S_DIR}/service.yaml
+        kubectl apply -f ${K8S_DIR}/ingress.yaml
+
+        echo "🔹 Waiting for deployment rollout"
         kubectl rollout status deployment/solar-system
         '''
       }
