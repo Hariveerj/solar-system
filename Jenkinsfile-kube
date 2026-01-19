@@ -7,6 +7,7 @@ pipeline {
 
     options {
         disableConcurrentBuilds()
+        timeout(time: 30, unit: 'MINUTES')
     }
 
     stages {
@@ -21,6 +22,9 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 sh '''
+                kubectl get deployment solar-system || \
+                  kubectl apply -f k8s/solar-deployment.yaml
+
                 kubectl set image deployment/solar-system \
                   solar-system=hariveer/solar-system:${IMAGE_TAG}
 
