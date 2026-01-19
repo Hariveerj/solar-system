@@ -2,7 +2,7 @@ pipeline {
     agent { label 'app-server-agent' }
 
     environment {
-        // ===== Nexus =====
+        // Nexus
         NEXUS_URL   = 'http://13.234.202.23:8081'
         NEXUS_REPO  = 'maven-snapshots'
         NEXUS_CREDS = 'nexus-creds'
@@ -11,18 +11,15 @@ pipeline {
         ARTIFACT_ID = 'solar-system'
         VERSION     = '1.0-SNAPSHOT'
 
-        // ===== Docker =====
+        // Docker
         IMAGE_NAME = 'hariveer/solar-system'
         IMAGE_TAG  = "${BUILD_NUMBER}"
-        CONTAINER  = "solar-test-${BUILD_NUMBER}"
     }
 
     stages {
 
-        stage('Checkout Source') {
-            steps {
-                checkout scm
-            }
+        stage('Checkout') {
+            steps { checkout scm }
         }
 
         stage('Download JAR from Nexus (SNAPSHOT SAFE)') {
@@ -33,26 +30,11 @@ pipeline {
                     passwordVariable: 'NEXUS_PASS'
                 )]) {
                     sh '''
-                    set -e
                     mkdir -p target
-
-                    echo "🔹 Fetching maven-metadata.xml"
-                    curl -sf -u $NEXUS_USER:$NEXUS_PASS \
-                      $NEXUS_URL/repository/$NEXUS_REPO/$GROUP_ID/$ARTIFACT_ID/$VERSION/maven-metadata.xml \
-                      -o metadata.xml
-
-                    SNAPSHOT_VERSION=$(grep '<value>' metadata.xml | head -1 | sed 's/.*<value>\\(.*\\)<\\/value>.*/\\1/')
-
-                    if [ -z "$SNAPSHOT_VERSION" ]; then
-                      echo "❌ SNAPSHOT version not found"
-                      exit 1
-                    fi
-
-                    echo "✅ Resolved SNAPSHOT version: $SNAPSHOT_VERSION"
 
                     curl -sf -u $NEXUS_USER:$NEXUS_PASS \
                       -o target/app.jar \
-                      $NEXUS_URL/repository/$NEXUS_REPO/$GROUP_ID/$ARTIFACT_ID/$VERSION/$ARTIFACT_ID-$SNAPSHOT_VERSION.jar
+                      $NEXUS_URL/repository/$NEXUS_REPO/$GROUP_ID/$ARTIFACT_ID/$VERSION/$ARTIFACT_ID-$VERSION.jar
 
                     ls -lh target/app.jar
                     '''
@@ -62,48 +44,39 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-                docker build -t $IMAGE_NAME:$IMAGE_TAG .
-                docker images | grep $IMAGE_NAME
-                '''
+                sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
             }
         }
 
-        stage('Run Container on 8080 (DO NOT REMOVE)') {
+        stage('Run App on 8080 (DO NOT REMOVE)') {
             steps {
                 sh '''
-                echo "🔹 Starting container on 8080"
-
                 docker run -d \
                   -p 8080:8080 \
-                  --name $CONTAINER \
+                  --name solar-test-$BUILD_NUMBER \
                   $IMAGE_NAME:$IMAGE_TAG
 
-                docker ps | grep $CONTAINER
+                sleep 20
+
+                curl -f http://localhost:8080/planet/health
                 '''
             }
         }
 
-        stage('Approval After App is Running') {
+        stage('Approval') {
             steps {
-                input message: """
-✅ App is running on port 8080
-
-URL: http://<APP-SERVER-IP>:8080
-
-Proceed to Phase-3 (Kubernetes)?
-""",
-                ok: 'APPROVE'
+                input message: 'App running on 8080. Proceed to Kubernetes?',
+                      ok: 'APPROVE'
             }
         }
     }
 
     post {
         success {
-            echo '✅ Phase-2 SUCCESS – App running on 8080'
+            echo '✅ Phase-2 SUCCESS'
         }
         aborted {
-            echo '⏸️ Approval rejected – Container still running'
+            echo '⏸️ Approval rejected – container still running'
         }
         failure {
             echo '❌ Phase-2 FAILED'

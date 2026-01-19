@@ -10,4 +10,9 @@ public class HealthController {
     public String health() {
         return "OK";
     }
+
+    @GetMapping("/")
+    public String root() {
+        return "Solar System API is running";
+    }
 }

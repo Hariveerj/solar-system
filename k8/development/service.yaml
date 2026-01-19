@@ -9,4 +9,4 @@ spec:
   ports:
   - port: 8080
     targetPort: 8080
-    nodePort: 32463   # fixed port for testing
+    nodePort: 30080
