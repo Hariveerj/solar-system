@@ -17,7 +17,7 @@ pipeline {
         SONAR_PROJECT_NAME = 'solar-system'
 
         // Nexus
-        NEXUS_URL   = '65.0.101.33:8081'
+        NEXUS_URL   = '13.234.202.23:8081'
         NEXUS_REPO  = 'maven-snapshots'
         NEXUS_CREDS = 'nexus-creds'
     }
