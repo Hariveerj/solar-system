@@ -24,7 +24,7 @@ pipeline {
             }
         }
 
-        stage('Download JAR from Nexus') {
+        stage('Download JAR from Nexus (SNAPSHOT SAFE)') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: NEXUS_CREDS,
@@ -35,10 +35,26 @@ pipeline {
                     set -e
                     mkdir -p target
 
+                    echo "🔹 Fetching maven-metadata.xml"
+
+                    curl -sf -u $NEXUS_USER:$NEXUS_PASS \
+                      $NEXUS_URL/repository/$NEXUS_REPO/$GROUP_ID/$ARTIFACT_ID/$VERSION/maven-metadata.xml \
+                      -o metadata.xml
+
+                    SNAPSHOT_VERSION=$(grep '<value>' metadata.xml | head -1 | sed 's/.*<value>\\(.*\\)<\\/value>.*/\\1/')
+
+                    if [ -z "$SNAPSHOT_VERSION" ]; then
+                      echo "❌ Snapshot version not found"
+                      exit 1
+                    fi
+
+                    echo "✅ Resolved Snapshot Version: $SNAPSHOT_VERSION"
+
                     curl -sf -u $NEXUS_USER:$NEXUS_PASS \
                       -o target/app.jar \
-                      $NEXUS_URL/repository/$NEXUS_REPO/$GROUP_ID/$ARTIFACT_ID/$VERSION/$ARTIFACT_ID-$VERSION.jar
+                      $NEXUS_URL/repository/$NEXUS_REPO/$GROUP_ID/$ARTIFACT_ID/$VERSION/$ARTIFACT_ID-$SNAPSHOT_VERSION.jar
 
+                    echo "✅ JAR downloaded"
                     ls -lh target/app.jar
                     '''
                 }
@@ -53,17 +69,15 @@ pipeline {
             }
         }
 
-        stage('Run Container on 8080') {
+        stage('Run Container on 8080 (DO NOT REMOVE)') {
             steps {
                 sh '''
-                docker rm -f solar-test || true
-
                 docker run -d \
                   -p 8080:8080 \
-                  --name solar-test \
+                  --name solar-test-$IMAGE_TAG \
                   $IMAGE_NAME:$IMAGE_TAG
 
-                echo "✅ Container started on port 8080"
+                echo "✅ App running on http://<SERVER-IP>:8080"
                 docker ps | grep solar-test
                 '''
             }
@@ -71,22 +85,21 @@ pipeline {
 
         stage('Approval After App is Running') {
             steps {
-                input message: "App is running on port 8080. Proceed to Phase-3 (Kubernetes)?",
+                input message: "App is LIVE on port 8080. Proceed to Phase-3 (Kubernetes)?",
                       ok: "APPROVE"
             }
         }
-
     }
 
     post {
         success {
-            echo '✅ Phase-2 success: App running on 8080 & approval granted'
+            echo '✅ Phase-2 SUCCESS: App running on 8080'
         }
         aborted {
-            echo '⏸️ Approval rejected – Container still running on 8080'
+            echo '⏸️ Approval rejected – App still running on 8080'
         }
         failure {
-            echo '❌ Phase-2 failed'
+            echo '❌ Phase-2 FAILED'
         }
     }
 }
