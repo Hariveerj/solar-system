@@ -6,7 +6,7 @@ pipeline {
         ARTIFACT_ID = 'solar-system'
         VERSION     = '1.0-SNAPSHOT'
 
-        NEXUS_URL   = 'http://13.232.240.121:8081'
+        NEXUS_URL   = 'http://43.205.196.102:8081'
         NEXUS_REPO  = 'maven-snapshots'
         NEXUS_CREDS = 'nexus-creds'
 
@@ -94,7 +94,7 @@ pipeline {
 
     post {
         always {
-            sh 'docker system prune -f || true'
+            sh 'docker system prune -af || true'
         }
     }
 }
