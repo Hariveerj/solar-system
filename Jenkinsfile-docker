@@ -62,10 +62,13 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh '''
-                docker build -t $IMAGE_NAME:$IMAGE_TAG .
+                pwd
+                ls -lh target
+                docker build -t hariveer/solar-system:${BUILD_NUMBER} .
                 '''
             }
         }
+
 
         stage('Run App on 8080 (DO NOT REMOVE)') {
             steps {
