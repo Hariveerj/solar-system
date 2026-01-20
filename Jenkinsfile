@@ -7,16 +7,16 @@ pipeline {
     }
 
     environment {
-        // ===== Project =====
+        // Project
         GROUP_ID    = 'com.example'
         ARTIFACT_ID = 'solar-system'
         VERSION     = '1.0-SNAPSHOT'
 
-        // ===== SonarQube =====
+        // Sonar
         SONAR_PROJECT_KEY  = 'solar-system'
         SONAR_PROJECT_NAME = 'solar-system'
 
-        // ===== Nexus =====
+        // Nexus
         NEXUS_URL   = '13.234.202.23:8081'
         NEXUS_REPO  = 'maven-snapshots'
         NEXUS_CREDS = 'nexus-creds'
@@ -24,7 +24,7 @@ pipeline {
 
     stages {
 
-        stage('Checkout SCM') {
+        stage('Checkout') {
             steps {
                 checkout scm
             }
@@ -39,11 +39,11 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('sonarqube-server') {
-                    sh """
-                    mvn sonar:sonar \
+                    sh '''
+                    mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
                       -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                       -Dsonar.projectName=${SONAR_PROJECT_NAME}
-                    """
+                    '''
                 }
             }
         }
@@ -106,7 +106,7 @@ pipeline {
 
         stage('Deployment Approval') {
             steps {
-                input message: 'Approve deployment to Phase-2?',
+                input message: 'Approve deployment?',
                       ok: 'Proceed'
             }
         }
