@@ -16,7 +16,7 @@ public class PlanetController {
 
     @PostMapping("/{id}")
     public Planet getPlanet(@PathVariable String id) {
-        return planetRepository.findById(id)
+        return planetRepository.findById(Long.parseLong(id))
                 .orElseThrow(() -> new RuntimeException("Planet not found"));
     }
 }

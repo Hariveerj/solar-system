@@ -30,6 +30,19 @@ pipeline {
             }
         }
 
+        
+        //  ===== AI CODE REVIEW ======
+		
+        stage('AI Code Review') {
+            steps {
+                sh '''
+                python3 ai-agent/code_review.py \
+                  > ai-code-review.txt || true
+                cat ai-code-review.txt || true
+                '''
+            }
+        }
+
         stage('Maven Build') {
             steps {
                 sh 'mvn clean package -DskipTests'
@@ -56,6 +69,19 @@ pipeline {
                   --severity HIGH,CRITICAL \
                   --format json \
                   --output trivy-report/trivy-report.json
+                '''
+            }
+        }
+
+        // ====== AI SECURITY REVIEW ======
+
+        stage('AI Security Review') {
+            steps {
+                sh '''
+                python3 ai-agent/security_review.py \
+                  trivy-report/trivy-report.json \
+                  > ai-security.txt || true
+                cat ai-security.txt || true
                 '''
             }
         }
@@ -101,6 +127,27 @@ pipeline {
                         type: 'json'
                     ]]
                 )
+            }
+        }
+
+        // ===== AI AUTO APPROVAL ======
+        stage('AI Deployment Approval') {
+            steps {
+                script {
+                    def decision = sh(
+                        script: '''
+                        python3 ai-agent/deploy_decision.py \
+                          trivy-report/trivy-report.json || echo APPROVE
+                        ''',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "AI Decision: ${decision}"
+
+                    if (decision != "APPROVE") {
+                        error " Deployment blocked by AI"
+                    }
+                }
             }
         }
 

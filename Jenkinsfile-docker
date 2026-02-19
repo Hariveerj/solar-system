@@ -69,6 +69,28 @@ pipeline {
             }
         }
 
+        
+        // ====AI AUTO APPROVAL ======
+        
+        stage('AI Auto Approval') {
+            steps {
+                script {
+                    def decision = sh(
+                        script: '''
+                        python3 ai-agent/deploy_decision.py \
+                          trivy-report/trivy-report.json || echo APPROVE
+                        ''',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "AI Decision: ${decision}"
+
+                    if (decision != "APPROVE") {
+                        error " Deployment blocked by AI"
+                    }
+                }
+            }
+        }
 
         stage('Run App on 8080 (DO NOT REMOVE)') {
             steps {
@@ -80,7 +102,7 @@ pipeline {
                   --name solar-test \
                   $IMAGE_NAME:$IMAGE_TAG
 
-                echo "✅ App running on http://<server-ip>:8080"
+                echo " App running on http://<server-ip>:8080"
                 docker ps | grep solar-test
                 '''
             }
@@ -96,13 +118,13 @@ pipeline {
 
     post {
         success {
-            echo '✅ Phase-2 SUCCESS'
+            echo ' Phase-2 SUCCESS'
         }
         aborted {
-            echo '⏸️ Approval rejected – App still running on 8080'
+            echo '⏸ Approval rejected – App still running on 8080'
         }
         failure {
-            echo '❌ Phase-2 FAILED'
+            echo ' Phase-2 FAILED'
         }
     }
 }

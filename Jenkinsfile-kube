@@ -17,6 +17,22 @@ pipeline {
       }
     }
 
+    
+    // =====AI K8s Manifest Review======
+    
+    stage('AI K8s Manifest Review') {
+      steps {
+        sh '''
+        echo "🔹 Running AI review on Kubernetes manifests..."
+
+        python3 ai-agent/k8s_review.py \
+          > ai-k8s-review.txt
+
+        cat ai-k8s-review.txt
+        '''
+      }
+    }
+
     stage('Approval (Phase-3)') {
       steps {
         input message: "Deploy ${IMAGE_NAME}:${IMAGE_TAG} to Kubernetes?",
