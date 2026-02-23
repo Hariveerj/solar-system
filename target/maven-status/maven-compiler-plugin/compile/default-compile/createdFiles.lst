@@ -1,5 +1,2 @@
-com\example\solar\controller\PlanetController.class
-com\example\solar\repository\PlanetRepository.class
-com\example\solar\model\Planet.class
 com\example\solar\controller\HealthController.class
 com\example\solar\SolarSystemApplication.class
